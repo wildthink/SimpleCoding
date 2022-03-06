@@ -12,10 +12,13 @@ public protocol KeyedStoreDecoder: KeyedDecodingContainerProtocol {
  */
 public protocol ReadableStore {
     typealias PathKey = CodingKey
-    func read<T>(via: [PathKey], at: PathKey, as: T.Type) throws -> T
-    func read<T>(via: [PathKey], at ndx: Int, as: T.Type) throws -> T
+    func read<T: Decodable>(via: [PathKey], at: PathKey, as: T.Type) throws -> T
+    func read<T: Decodable>(via: [PathKey], at ndx: Int, as: T.Type) throws -> T
     func contains(_ key: PathKey, at: [PathKey]) -> Bool
     func readNil(forKey key: PathKey, at: [PathKey]) throws -> Bool
+    
+    // jmj
+    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore
 }
 
 public protocol WrtiableStore {
@@ -51,12 +54,36 @@ public extension ReadableStore {
     }
 }
 
-public class StoreDecoder {
-    enum _Error: Error { case notImplemented }
+// jmj
+protocol OptionalDecodable: Decodable {
+    static func wrappedType() -> Decodable.Type
+    func wrappedType() -> Decodable.Type
+}
 
-    static func decode<T>(_ type: T.Type, from store: ReadableStore) throws -> T
-    where T : Decodable {
+extension Optional: OptionalDecodable where Wrapped: Decodable {
+    static func wrappedType() -> Decodable.Type {
+        Wrapped.self
+    }
+    func wrappedType() -> Decodable.Type {
+        return Wrapped.self
+    }
+}
+
+public class StoreDecoder {
+    enum _Error: Error {
+        case notImplemented(String = #function, String = #file, Int = #line)
+    }
+
+    static func decode<T: Decodable>(_ type: T.Type, from store: ReadableStore)
+    throws -> T
+    {
         let decoder = _StoreDecoder(store: store)
+        if T.Type.self is OptionalDecodable {
+            print(#function, "Optional")
+        }
+        if let W = (T.Type.self as? OptionalDecodable)?.wrappedType() {
+            return try W.init(from: decoder) as! T
+        }
         return try T(from: decoder)
     }
     
@@ -78,11 +105,11 @@ extension StoreDecoder {
         }
 
         public func unkeyedContainer() throws -> UnkeyedDecodingContainer {
-            throw StoreDecoder._Error.notImplemented
+            throw StoreDecoder._Error.notImplemented()
         }
         
         public func singleValueContainer() throws -> SingleValueDecodingContainer {
-            throw StoreDecoder._Error.notImplemented
+            throw StoreDecoder._Error.notImplemented()
         }
     }
 }
@@ -169,29 +196,36 @@ extension KeyedStoreDecoder {
         try read(key)
     }
     
-    func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T : Decodable {
+    func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         if let v: T = try? read(key) { return v }
+        // TBD: Add return of default value for key
         // else
-        let nob = try? store.read(via: codingPath, at: key,
-                                  as: [String:Any].self)
-        let nc = try nestedContainer(keyedBy: Key.self, forKey: key)
-        return try nc.decode(T.self, forKey: key)
-//        throw StoreDecoder._Error.notImplemented
+        let nestedStore = try store.nestedStore(forKey: key, at: self.codingPath)
+        return try StoreDecoder.decode(T.self, from: nestedStore)
+
+////        let nob = try? store.read(via: codingPath, at: key, as: [String:Any].self)
+//        let nc = try nestedContainer(keyedBy: Key.self, forKey: key)
+//        return try nc.decode(T.self, forKey: key)
+////        throw StoreDecoder._Error.notImplemented
     }
     
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        throw StoreDecoder._Error.notImplemented
+        // TODO: Ask if this is ALWAYS correct
+        let nestedStore = try store.nestedStore(forKey: key, at: self.codingPath)
+        return StoreDecoder._StoreDecoder(store: nestedStore)
+            .container(keyedBy: NestedKey.self)
+//        throw StoreDecoder._Error.notImplemented()
     }
     
     func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
-        throw StoreDecoder._Error.notImplemented
+        throw StoreDecoder._Error.notImplemented()
     }
     
     func superDecoder() throws -> Decoder {
-        throw StoreDecoder._Error.notImplemented
+        throw StoreDecoder._Error.notImplemented()
     }
     
     func superDecoder(forKey key: Key) throws -> Decoder {
-        throw StoreDecoder._Error.notImplemented
+        throw StoreDecoder._Error.notImplemented()
     }
 }
