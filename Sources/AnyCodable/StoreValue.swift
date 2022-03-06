@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  StoreValue.swift
 //  
 //
 //  Created by Jason Jobe on 10/29/21.
@@ -25,15 +25,15 @@ public enum Value {
     var kind: Kind {
         switch self {
             case .integer(_): return .integer
-            case .real(_): return .real
-            case .blob(_): return .blob
-            case .text(_): return .text
-            case .null: return .null
+            case .real(_):    return .real
+            case .blob(_):    return .blob
+            case .text(_):    return .text
+            case .null:       return .null
         }
     }
 }
 
-extension Value {
+public extension Value {
     
     func cast<T>(to type: T.Type = T.self) throws -> T {
         switch self {

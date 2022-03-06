@@ -1,6 +1,6 @@
 # SimpleCodable
 
-This is "VERY" simple non-nesting Decoder to try out some concepts.
+This is "VERY" simple Decoder to try out some concepts.
 
 Possible *simple* use cases include
 - Read a SQL Row into a Codable struct or class
@@ -8,6 +8,6 @@ Possible *simple* use cases include
 
 TODO
 - Implement Encoder
-- Add Nesting
-
++ Add Nested KeyedContainters
+- Add Nested UnkeyedContainers (e.g. Array)
 

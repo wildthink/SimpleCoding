@@ -1,8 +1,10 @@
 import Foundation
+import CoreLocation
 
 public protocol KeyedStoreDecoder: KeyedDecodingContainerProtocol {
     var store: ReadableStore { get }
     func read<T: Decodable>( _ key: Key) throws -> T
+//    func read<T: Decodable>( _ key: Key, as: T.Type) throws -> T
 }
 
 /***
@@ -25,6 +27,18 @@ public protocol WrtiableStore {
     typealias PathKey = CodingKey
     func write<T>(value: T, via: [PathKey], at: PathKey) throws
     func write<T>(value: T, via: [PathKey], at ndx: Int) throws
+}
+
+public protocol OptionalDecodable: Decodable {
+    static
+    func wrappedType() -> Decodable.Type
+    func wrappedType() -> Decodable.Type
+}
+
+extension Optional: OptionalDecodable where Wrapped: Decodable {
+    static
+    public func wrappedType() -> Decodable.Type { Wrapped.self }
+    public func wrappedType() -> Decodable.Type { Wrapped.self }
 }
 
 /// This method exists to enable the compiler to perform type inference on
@@ -54,33 +68,16 @@ public extension ReadableStore {
     }
 }
 
-// jmj
-protocol OptionalDecodable: Decodable {
-    static func wrappedType() -> Decodable.Type
-    func wrappedType() -> Decodable.Type
-}
-
-extension Optional: OptionalDecodable where Wrapped: Decodable {
-    static func wrappedType() -> Decodable.Type {
-        Wrapped.self
-    }
-    func wrappedType() -> Decodable.Type {
-        return Wrapped.self
-    }
-}
-
 public class StoreDecoder {
     enum _Error: Error {
         case notImplemented(String = #function, String = #file, Int = #line)
+        case unsupported(key: CodingKey, String = #function, String = #file, Int = #line)
     }
 
     static func decode<T: Decodable>(_ type: T.Type, from store: ReadableStore)
     throws -> T
     {
         let decoder = _StoreDecoder(store: store)
-        if T.Type.self is OptionalDecodable {
-            print(#function, "Optional")
-        }
         if let W = (T.Type.self as? OptionalDecodable)?.wrappedType() {
             return try W.init(from: decoder) as! T
         }
@@ -126,6 +123,7 @@ extension StoreDecoder {
         func read<T: Decodable>( _ key: Key) throws -> T {
             try store.read(via: codingPath, at: key, as: T.self)
         }
+
      }
 }
 
@@ -197,24 +195,14 @@ extension KeyedStoreDecoder {
     }
     
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
-        if let v: T = try? read(key) { return v }
-        // TBD: Add return of default value for key
-        // else
-        let nestedStore = try store.nestedStore(forKey: key, at: self.codingPath)
-        return try StoreDecoder.decode(T.self, from: nestedStore)
-
-////        let nob = try? store.read(via: codingPath, at: key, as: [String:Any].self)
-//        let nc = try nestedContainer(keyedBy: Key.self, forKey: key)
-//        return try nc.decode(T.self, forKey: key)
-////        throw StoreDecoder._Error.notImplemented
+        try read(key)
     }
     
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        // TODO: Ask if this is ALWAYS correct
+        // TODO: Investigate if this is ALWAYS correct
         let nestedStore = try store.nestedStore(forKey: key, at: self.codingPath)
         return StoreDecoder._StoreDecoder(store: nestedStore)
             .container(keyedBy: NestedKey.self)
-//        throw StoreDecoder._Error.notImplemented()
     }
     
     func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
