@@ -1,85 +1,29 @@
 import Foundation
 import CoreLocation
 
-public protocol KeyedStoreDecoder: KeyedDecodingContainerProtocol {
-    var store: ReadableStore { get }
-    func read<T: Decodable>( _ key: Key) throws -> T
-//    func read<T: Decodable>( _ key: Key, as: T.Type) throws -> T
-}
 
-/***
- Both Readable and Writable Stores have an explicit "root", from
- which a path which can be "traversed" to either a Keyed or UnKeyed
- container of values.
- */
-public protocol ReadableStore {
-    typealias PathKey = CodingKey
-    func read<T: Decodable>(via: [PathKey], at: PathKey, as: T.Type) throws -> T
-    func read<T: Decodable>(via: [PathKey], at ndx: Int, as: T.Type) throws -> T
-    func contains(_ key: PathKey, at: [PathKey]) -> Bool
-    func readNil(forKey key: PathKey, at: [PathKey]) throws -> Bool
+public struct StoreDecoder {
     
-    // jmj
-    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore
-}
-
-public protocol WrtiableStore {
-    typealias PathKey = CodingKey
-    func write<T>(value: T, via: [PathKey], at: PathKey) throws
-    func write<T>(value: T, via: [PathKey], at ndx: Int) throws
-}
-
-public protocol OptionalDecodable: Decodable {
-    static
-    func wrappedType() -> Decodable.Type
-    func wrappedType() -> Decodable.Type
-}
-
-extension Optional: OptionalDecodable where Wrapped: Decodable {
-    static
-    public func wrappedType() -> Decodable.Type { Wrapped.self }
-    public func wrappedType() -> Decodable.Type { Wrapped.self }
-}
-
-/// This method exists to enable the compiler to perform type inference on
-/// the generic parameter `T` of `ReadableStore.read(via:at:as:)`. Protocols can
-/// not provide default arguments to methods, which is required for
-/// inference to work with generic type parameters. It is not expected that
-/// user code will invoke this method directly; rather it will be selected
-/// by the compiler automatically, as in this example:
-///
-/// ```
-/// let row = getAnSQLRowFromSomewhere()
-/// // `T` is inferred to be `Int`
-/// let id: Int = try store.decode(via: path. at: "int")
-/// // Error: No context to infer the type from.
-/// let name = try store.decode(via: path. at: "name")
-/// ```
-///
-/// - Note: The presence of this method in a protocol extension allows it to
-///         be available without requiring explicit support from individual
-///         database drivers.
-public extension ReadableStore {
-    func read<T: Decodable>(via: [PathKey], at ndx: Int, inferringAs: T.Type = T.self) throws -> T {
-        try self.read(via: via, at: ndx, as: T.self)
-    }
-    func read<T: Decodable>(via: [PathKey], at key: PathKey, inferringAs: T.Type = T.self) throws -> T {
-        try self.read(via: via, at: key, as: T.self)
-    }
-}
-
-public class StoreDecoder {
+    var store: ReadableStore
+    
+    public private(set) var codingPath: [CodingKey] = []
+    public private(set) var userInfo: [CodingUserInfoKey : Any] = [:]
+    
     enum _Error: Error {
         case notImplemented(String = #function, String = #file, Int = #line)
-        case unsupported(key: CodingKey, String = #function, String = #file, Int = #line)
+        case unsupported(key: CodingKey, String = #function,
+                         String = #file, Int = #line)
     }
+}
 
+extension StoreDecoder {
+    
     static func decode<T: Decodable>(_ type: T.Type, from store: ReadableStore)
     throws -> T
     {
-        let decoder = _StoreDecoder(store: store)
+        let decoder = StoreDecoder(store: store)
         if let W = (T.Type.self as? OptionalDecodable)?.wrappedType() {
-            return try W.init(from: decoder) as! T
+            return try W.init(from: self as! Decoder) as! T
         }
         return try T(from: decoder)
     }
@@ -87,48 +31,52 @@ public class StoreDecoder {
 }
 
 
-extension StoreDecoder {
+extension StoreDecoder: Decoder {
     
-    struct _StoreDecoder: Decoder {
-        var store: ReadableStore
+    public func container<Key>(keyedBy type: Key.Type)
+    -> KeyedDecodingContainer<Key> where Key : CodingKey {
         
-        var codingPath: [CodingKey] = []
-        var userInfo: [CodingUserInfoKey : Any] = [:]
-        
-        public func container<Key>(keyedBy type: Key.Type) -> KeyedDecodingContainer<Key> where Key : CodingKey {
-
-            let container = _KeyedDecoder<Key>(store: self.store, codingPath: [], userInfo: self.userInfo, allKeys: [])
-            return KeyedDecodingContainer(container)
-        }
-
-        public func unkeyedContainer() throws -> UnkeyedDecodingContainer {
-            throw StoreDecoder._Error.notImplemented()
-        }
-        
-        public func singleValueContainer() throws -> SingleValueDecodingContainer {
-            throw StoreDecoder._Error.notImplemented()
-        }
+        KeyedDecodingContainer(StoreDecoder.KeyedContainer<Key>(
+            decoder: self,
+            codingPath: [], userInfo: self.userInfo, allKeys: []))
     }
+    
+    public func unkeyedContainer() throws
+    -> UnkeyedDecodingContainer {
+        UnkeyedContainer(decoder: self, codingPath: [])
+    }
+    
+    public func singleValueContainer() throws
+    -> SingleValueDecodingContainer {
+        throw StoreDecoder._Error.notImplemented()
+    }
+    //    }
 }
 
+// MARK: - KeyedContainer
 extension StoreDecoder {
-    struct _KeyedDecoder<Key>: KeyedStoreDecoder
+    struct KeyedContainer<Key>: KeyedDecodingContainerProtocol
     where Key: CodingKey {
         
-        var store: ReadableStore
+        var decoder: StoreDecoder
         var codingPath: [CodingKey]
         public var userInfo: [CodingUserInfoKey : Any] = [:]
         var allKeys: [Key]
         
+        var store: ReadableStore { decoder.store }
+        
         func read<T: Decodable>( _ key: Key) throws -> T {
-            try store.read(via: codingPath, at: key, as: T.self)
+            guard let rval =
+                    try store.read(via: codingPath, at: key, as: T.self) as? T
+            else { throw _Error.unsupported(key: key) }
+            return rval
         }
-
-     }
+        
+    }
 }
 
 // MARK: - KeyedDecodingContainerProtocol
-extension KeyedStoreDecoder {
+extension StoreDecoder.KeyedContainer {
     
     func contains(_ key: Key) -> Bool {
         store.contains(key, at: codingPath)
@@ -199,14 +147,12 @@ extension KeyedStoreDecoder {
     }
     
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        // TODO: Investigate if this is ALWAYS correct
-        let nestedStore = try store.nestedStore(forKey: key, at: self.codingPath)
-        return StoreDecoder._StoreDecoder(store: nestedStore)
-            .container(keyedBy: NestedKey.self)
+        undefined()
     }
     
     func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
-        throw StoreDecoder._Error.notImplemented()
+        undefined()
+        // TODO: Investigate if this is ALWAYS correct
     }
     
     func superDecoder() throws -> Decoder {
@@ -217,3 +163,62 @@ extension KeyedStoreDecoder {
         throw StoreDecoder._Error.notImplemented()
     }
 }
+
+
+// MARK: - UnKeyedStoreDecoder
+/*
+ extension StoreDecoder {
+ //    struct _UnkeyedDecoder<Key>: UnkeyedStoreDecoder
+ //    where Key: CodingKey {
+ //    }
+ 
+ struct _UnkeyedDecoder : UnkeyedDecodingContainer {
+ mutating func decodeNil() throws -> Bool {
+ <#code#>
+ }
+ 
+ mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+ <#code#>
+ }
+ 
+ mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+ <#code#>
+ }
+ 
+ mutating func superDecoder() throws -> Decoder {
+ <#code#>
+ }
+ 
+ // MARK: Properties
+ /// A reference to the decoder we're reading from.
+ //        private let decoder: _DictionaryDecoder
+ 
+ /// A reference to the container we're reading from.
+ private let container: [Any]
+ 
+ /// The path of coding keys taken to get to this point in decoding.
+ private(set) public var codingPath: [CodingKey]
+ 
+ /// The index of the element we're about to decode.
+ private(set) public var currentIndex: Int
+ 
+ // MARK: - Initialization
+ /// Initializes `self` by referencing the given decoder and container.
+ fileprivate init(wrapping container: [Any]) {
+ //            self.decoder = decoder
+ self.container = container
+ self.codingPath = decoder.codingPath
+ self.currentIndex = 0
+ }
+ 
+ // MARK: - UnkeyedDecodingContainer Methods
+ public var count: Int? {
+ return self.container.count
+ }
+ 
+ public var isAtEnd: Bool {
+ return self.currentIndex >= self.count!
+ }
+ }
+ }
+ */
