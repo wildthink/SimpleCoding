@@ -23,23 +23,18 @@ struct UnkeyedContainer: UnkeyedDecodingContainer {
     var codingPath: [CodingKey] = []
     private(set) var currentIndex = 0
 
-//    let store: KeyedStoreDecoder
-//    let values: [SingleValueDecodingContainer]
     var count: Int? { decoder.store.count(at: codingPath) }
     var isAtEnd: Bool { return currentIndex == count }
 
-//    init(values: [SingleValueDecodingContainer]) {
-//        self.values = values
-//    }
-    
     mutating func decodeNil() throws -> Bool {
+//        try store.readNil(forKey: currentIndex, at: codingPath)
         return true
     }
+    
     mutating func decode<T: Decodable>(_ type: T.Type) throws -> T {
         defer { currentIndex += 1 }
-        let raw = try decoder.store.read(
-            via: codingPath, at: currentIndex, as: T.self)
-        // FIXME: Constrain the Store
+//        let raw = try decoder.store.read(
+//            via: codingPath, at: currentIndex, as: T.self)
         
         let decoder = StoreDecoder(
             store: self.decoder.store,
@@ -54,11 +49,9 @@ struct UnkeyedContainer: UnkeyedDecodingContainer {
     
     mutating func nestedContainer<NestedKey: CodingKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
         return undefined()
-//        return .init(KeyedContainer<NestedKey>())
     }
     mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
         undefined()
-//        return UnkeyedContainer(values: [])
     }
     mutating func superDecoder() throws -> Decoder {
         return undefined()

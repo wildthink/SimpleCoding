@@ -1,17 +1,11 @@
 //
-//  File.swift
+//  CodableStore.swift
 //  
 //
 //  Created by Jason Jobe on 3/10/22.
 //
 
 import Foundation
-
-//public protocol KeyedStoreDecoder: KeyedDecodingContainerProtocol {
-//    var store: ReadableStore { get }
-//    func read<T: Decodable>( _ key: Key) throws -> T
-////    func read<T: Decodable>( _ key: Key, as: T.Type) throws -> T
-//}
 
 /***
  Both Readable and Writable Stores have an explicit "root", from
@@ -20,23 +14,21 @@ import Foundation
  */
 public protocol ReadableStore {
     typealias PathKey = CodingKey
-    
-    //    func read<T: Decodable>(via: [PathKey], at: PathKey, as: T.Type) throws -> T
-    //    func read<T: Decodable>(via: [PathKey], at ndx: Int, as: T.Type) throws -> T
-    
+        
     func read<T>(via: [PathKey], at: PathKey, as: T.Type)
     throws -> Any
     
     func read<T>(via: [PathKey], at ndx: Int, as: T.Type)
     throws -> Any
     
-    func count(at: [PathKey]) -> Int
+    func count(at: [PathKey])
+    -> Int
     
-    func contains(_ key: PathKey, at: [PathKey]) -> Bool
-    func readNil(forKey key: PathKey, at: [PathKey]) throws -> Bool
+    func contains(_ key: PathKey, at: [PathKey])
+    -> Bool
     
-    // jmj
-//    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore
+    func readNil(forKey key: PathKey, at: [PathKey])
+    throws -> Bool
 }
 
 public protocol WrtiableStore {

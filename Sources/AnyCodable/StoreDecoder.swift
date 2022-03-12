@@ -30,7 +30,6 @@ extension StoreDecoder {
     
 }
 
-
 extension StoreDecoder: Decoder {
     
     public func container<Key>(keyedBy type: Key.Type)
@@ -50,7 +49,6 @@ extension StoreDecoder: Decoder {
     -> SingleValueDecodingContainer {
         throw StoreDecoder._Error.notImplemented()
     }
-    //    }
 }
 
 // MARK: - KeyedContainer
@@ -72,11 +70,6 @@ extension StoreDecoder {
             let kpath = codingPath.appending(key)
             let dc = StoreDecoder(store: store, codingPath: kpath, userInfo: decoder.userInfo)
             return try T.init(from: dc)
-
-//            guard let rval =
-//                    try store.read(via: codingPath, at: key, as: T.self) as? T
-//            else { throw _Error.unsupported(key: key) }
-//            return rval
         }
         
     }
@@ -170,62 +163,3 @@ extension StoreDecoder.KeyedContainer {
         throw StoreDecoder._Error.notImplemented()
     }
 }
-
-
-// MARK: - UnKeyedStoreDecoder
-/*
- extension StoreDecoder {
- //    struct _UnkeyedDecoder<Key>: UnkeyedStoreDecoder
- //    where Key: CodingKey {
- //    }
- 
- struct _UnkeyedDecoder : UnkeyedDecodingContainer {
- mutating func decodeNil() throws -> Bool {
- <#code#>
- }
- 
- mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
- <#code#>
- }
- 
- mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
- <#code#>
- }
- 
- mutating func superDecoder() throws -> Decoder {
- <#code#>
- }
- 
- // MARK: Properties
- /// A reference to the decoder we're reading from.
- //        private let decoder: _DictionaryDecoder
- 
- /// A reference to the container we're reading from.
- private let container: [Any]
- 
- /// The path of coding keys taken to get to this point in decoding.
- private(set) public var codingPath: [CodingKey]
- 
- /// The index of the element we're about to decode.
- private(set) public var currentIndex: Int
- 
- // MARK: - Initialization
- /// Initializes `self` by referencing the given decoder and container.
- fileprivate init(wrapping container: [Any]) {
- //            self.decoder = decoder
- self.container = container
- self.codingPath = decoder.codingPath
- self.currentIndex = 0
- }
- 
- // MARK: - UnkeyedDecodingContainer Methods
- public var count: Int? {
- return self.container.count
- }
- 
- public var isAtEnd: Bool {
- return self.currentIndex >= self.count!
- }
- }
- }
- */
