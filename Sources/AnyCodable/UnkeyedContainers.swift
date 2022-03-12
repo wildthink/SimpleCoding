@@ -41,8 +41,11 @@ struct UnkeyedContainer: UnkeyedDecodingContainer {
             via: codingPath, at: currentIndex, as: T.self)
         // FIXME: Constrain the Store
         
-//        let store = decoder.store.nestedStore(forKey: currentIndex, at: codingPath)
-        let decoder = StoreDecoder(store: decoder.store)
+        let decoder = StoreDecoder(
+            store: self.decoder.store,
+            codingPath: codingPath.appending(index: currentIndex),
+            userInfo: [:])
+        
             if let W = (T.Type.self as? OptionalDecodable)?.wrappedType() {
                 return try W.init(from: self as! Decoder) as! T
             }

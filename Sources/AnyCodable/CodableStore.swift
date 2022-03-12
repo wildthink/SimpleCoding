@@ -36,7 +36,7 @@ public protocol ReadableStore {
     func readNil(forKey key: PathKey, at: [PathKey]) throws -> Bool
     
     // jmj
-    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore
+//    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore
 }
 
 public protocol WrtiableStore {
@@ -55,6 +55,54 @@ extension Optional: OptionalDecodable where Wrapped: Decodable {
     static
     public func wrappedType() -> Decodable.Type { Wrapped.self }
     public func wrappedType() -> Decodable.Type { Wrapped.self }
+}
+
+public protocol ArrayProtocol {
+    static func empty() -> Self
+    static var elementType: Any.Type { get }
+}
+
+extension Array: ArrayProtocol {
+    public static var elementType: Any.Type { Self.Element.self }
+    public static func empty() -> Self { [] }
+}
+
+public extension Array {
+    func appending(_ element: Self.Element) -> Self {
+        var this = self
+        this.append(element)
+        return this
+    }
+}
+
+public struct AnyCodingKey: CodingKey {
+    public let stringValue: String
+    public let intValue: Int?
+    
+    public init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+    
+    public init?(intValue: Int) {
+        self.intValue = intValue
+        self.stringValue = String(intValue)
+    }
+}
+
+public extension Array where Element == CodingKey {
+    func appending(index: Int) -> Self {
+        var this = self
+        this.append(AnyCodingKey(intValue: index)!)
+        return this
+    }
+    
+    func appending(key: String) -> Self {
+        var this = self
+        this.append(AnyCodingKey(stringValue: key)!)
+        return this
+    }
+    
 }
 
 /// This method exists to enable the compiler to perform type inference on

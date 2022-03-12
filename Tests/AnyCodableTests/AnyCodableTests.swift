@@ -47,7 +47,7 @@ final class AnyCodableTests: XCTestCase {
                 "age":  21,
                 "dob": adate,
                 "list": [1, 2]
-            ] as! [String:Decodable]
+            ] // as! [String:Decodable]
         ])
         let p = try StoreDecoder.decode(Person.self, from: store)
         
@@ -120,12 +120,6 @@ struct ArrayStore: ReadableStore {
     throws -> Bool {
         false
     }
-    
-    func nestedStore(forKey key: PathKey, at: [PathKey])
-    throws -> ReadableStore {
-        throw TestStore._Error.notImplemented
-    }
-    
 }
 
 
@@ -144,35 +138,14 @@ struct TestStore: ReadableStore {
     func count(at: [PathKey]) -> Int {
         1
     }
-
-    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore {
-        if let data = values[key.stringValue] as? [String:Decodable] {
-            return Self.init(values: data)
-        }
-        
-        if let data = values[key.stringValue] as? [Any] {
-            return ArrayStore(values: data)
-        }
-        else {
-            return ArrayStore(values: .empty())
-        }
-    }
-
-//    func nestedStore(forKey key: PathKey, at: [PathKey]) throws -> ReadableStore {
-//        guard let data = values[key.stringValue] as? [String:Any]
-//        else {
-//            throw _Error.noNestedStoreFor(key, at)
-//        }
-//        return Self.init(values: data)
-//    }
     
     // We support non-present keys as indicating a nil value
     func contains(_ key: PathKey, at: [PathKey]) -> Bool {
         true
     }
     
-    func readNil(forKey key: PathKey, at: [PathKey]) throws -> Bool {
-        values[key.stringValue] == nil
+    func readNil(forKey key: PathKey, at path: [PathKey]) throws -> Bool {
+        nil == (rawValue(path: path) as? [String:Any])?[key.stringValue]
     }
 
     func defaultValue<D>(for key: CodingKey, cast: D.Type = D.self) throws -> D {
@@ -186,16 +159,34 @@ struct TestStore: ReadableStore {
         }
     }
     
-    func read<T>(via: [PathKey], at key: PathKey, as rtype: T.Type)
+    func rawValue(path: [PathKey]) -> Any? {
+        var rv: Any? = values
+        
+        for p in path {
+            if let map = rv as? [String:Any] {
+                rv = map[p.stringValue]
+            }
+            else if let vec = rv as? [Any] {
+                rv = vec[p.intValue ?? 0]
+            }
+        }
+        return rv
+    }
+    
+    func read<T>(via path: [PathKey], at key: PathKey, as rtype: T.Type)
     throws -> Any
     {
-        guard values[key.stringValue] != nil else {
-            return try defaultValue(for: key, cast: T.self)
+        var raw = (rawValue(path: path) as? [String:Any])?[key.stringValue]
+        
+        if raw == nil {
+            raw = try? defaultValue(for: key, cast: T.self)
         }
-        let v = values[key.stringValue]
+        
+        return raw as Any
+/*
         // if the value `v` is already of the expected
         // type then simply return it
-        if let v = v as? T { return v }
+        if let v = raw as? T { return v }
         
         // Otherwise create a new `Decoder` that instantiates
         // a `T` from the supplied data `v` of Any
@@ -203,25 +194,40 @@ struct TestStore: ReadableStore {
         else {
             throw _Error.unsupported(T.self, key)
         }
+        return try dt.init(
+            from: StoreDecoder(
+                store: self,
+                codingPath: path.appending(key),
+                userInfo: [:]))
+
+//        throw _Error.unsupported(T.self, key)
+
 //        print(dt, type(of: dt))
         // (T.Type.self as? OptionalDecodable)
 //        return undefined()
-        let nestedStore = try nestedStore(forKey: key, at: via)
-        return try dt.init(from: StoreDecoder(store: nestedStore))
+//        let nestedStore = try nestedStore(forKey: key, at: via)
+//        return try dt.init(from: StoreDecoder(store: nestedStore))
+ */
     }
     
-    func read<T>(via: [PathKey], at ndx: Int, as: T.Type) throws -> Any {
-        throw _Error.notImplemented
+    func read<T>(via path: [PathKey], at ndx: Int, as rtype: T.Type) throws -> Any {
+        let raw = (rawValue(path: path) as? [Any])
+        guard raw != nil
+        else { throw _Error.missingValueAt(ndx) }
+        return raw as Any
+//        if let v = raw as? T { return v }
+//
+//        guard let dt: Decodable.Type = rtype as? Decodable.Type
+//        else {
+//            throw _Error.unsupported(T.self, path.first!)
+//        }
+//        return try dt.init(
+//            from: StoreDecoder(
+//                store: self,
+//                codingPath: path.appending(AnyCodingKey(intValue: ndx)!),
+//                userInfo: [:]))
+
+        
+//       throw _Error.notImplemented
     }
-}
-
-
-protocol ArrayProtocol {
-    static func empty() -> Self
-    static var elementType: Any.Type { get }
-}
-
-extension Array: ArrayProtocol {
-    static var elementType: Any.Type { Self.Element.self }
-    static func empty() -> Self { [] }
 }

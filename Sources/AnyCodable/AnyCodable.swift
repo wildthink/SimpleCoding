@@ -38,12 +38,12 @@ extension StoreDecoder: Decoder {
         
         KeyedDecodingContainer(StoreDecoder.KeyedContainer<Key>(
             decoder: self,
-            codingPath: [], userInfo: self.userInfo, allKeys: []))
+            codingPath: codingPath, userInfo: self.userInfo, allKeys: []))
     }
     
     public func unkeyedContainer() throws
     -> UnkeyedDecodingContainer {
-        UnkeyedContainer(decoder: self, codingPath: [])
+        UnkeyedContainer(decoder: self, codingPath: codingPath)
     }
     
     public func singleValueContainer() throws
@@ -66,10 +66,17 @@ extension StoreDecoder {
         var store: ReadableStore { decoder.store }
         
         func read<T: Decodable>( _ key: Key) throws -> T {
-            guard let rval =
-                    try store.read(via: codingPath, at: key, as: T.self) as? T
-            else { throw _Error.unsupported(key: key) }
-            return rval
+            let rval = try store.read(via: codingPath, at: key, as: T.self)
+            if let tval = rval as? T { return tval }
+            
+            let kpath = codingPath.appending(key)
+            let dc = StoreDecoder(store: store, codingPath: kpath, userInfo: decoder.userInfo)
+            return try T.init(from: dc)
+
+//            guard let rval =
+//                    try store.read(via: codingPath, at: key, as: T.self) as? T
+//            else { throw _Error.unsupported(key: key) }
+//            return rval
         }
         
     }
